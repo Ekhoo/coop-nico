@@ -29,7 +29,7 @@ import { formatPrice, formatDateTime, formatDate } from '@/lib/format'
 import { DbHealth } from '@/components/DbHealth'
 import { Modal } from '@/components/Modal'
 import { useToast } from '@/components/Toast'
-import { useDbStats, usePurgeTransactions } from '@/hooks/useDbStats'
+import { useCancelTransaction, useDbStats, usePurgeTransactions } from '@/hooks/useDbStats'
 import { useProducts } from '@/hooks/useProducts'
 import { formatGrams, type Profile, type Transaction, type TransactionItem } from '@/lib/database.types'
 
@@ -57,6 +57,7 @@ export function SalesPage() {
   const today = new Date()
   const [from, setFrom] = useState(format(startOfMonth(today), 'yyyy-MM-dd'))
   const [to, setTo] = useState(format(endOfMonth(today), 'yyyy-MM-dd'))
+  const [cancelTarget, setCancelTarget] = useState<TxWithDetails | null>(null)
 
   const fromDate = startOfDay(new Date(from))
   const toDate = endOfDay(new Date(to))
@@ -390,6 +391,7 @@ export function SalesPage() {
                   <th className="text-left px-3 py-2">Vendeur</th>
                   <th className="text-left px-3 py-2">Articles</th>
                   <th className="text-right px-3 py-2 w-24">Total</th>
+                  <th className="px-3 py-2 w-12"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -403,6 +405,15 @@ export function SalesPage() {
                     <td className="px-3 py-2 text-right font-medium">
                       {formatPrice(t.total_cents)}
                     </td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        onClick={() => setCancelTarget(t)}
+                        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        title="Annuler cette transaction"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -410,7 +421,92 @@ export function SalesPage() {
           </div>
         )}
       </div>
+
+      {cancelTarget && (
+        <CancelTransactionModal
+          tx={cancelTarget}
+          onClose={() => setCancelTarget(null)}
+        />
+      )}
     </div>
+  )
+}
+
+function CancelTransactionModal({
+  tx,
+  onClose,
+}: {
+  tx: TxWithDetails
+  onClose: () => void
+}) {
+  const toast = useToast()
+  const cancel = useCancelTransaction()
+
+  async function handleConfirm() {
+    try {
+      await cancel.mutateAsync(tx.id)
+      toast.success('Transaction annulée, stock restauré')
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Annulation impossible')
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Annuler la transaction ?"
+      footer={
+        <>
+          <button onClick={onClose} className="btn-secondary">
+            Retour
+          </button>
+          <button onClick={handleConfirm} className="btn-danger" disabled={cancel.isPending}>
+            <Trash2 className="h-4 w-4" />
+            {cancel.isPending ? 'Annulation…' : 'Confirmer l\'annulation'}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-3 text-sm">
+        <p className="text-slate-700">
+          Cette transaction sera <strong>définitivement supprimée</strong> et le stock des
+          articles vendus sera <strong>restauré</strong>.
+        </p>
+        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-1">
+          <div className="flex justify-between">
+            <span className="text-slate-500">Date</span>
+            <span className="font-medium">{formatDateTime(tx.created_at)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Vendeur</span>
+            <span className="font-medium">{tx.seller_name}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Total</span>
+            <span className="font-bold text-brand-700">{formatPrice(tx.total_cents)}</span>
+          </div>
+        </div>
+        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+          {tx.items.map((it) => (
+            <li key={it.id} className="flex justify-between px-3 py-1.5">
+              <span className="text-slate-700">
+                {it.qty}
+                {it.unit_portion_grams != null ? ' portions' : '×'} {it.product_name}
+              </span>
+              <span className="text-slate-500 text-xs">
+                +
+                {it.unit_portion_grams != null
+                  ? formatGrams(it.unit_portion_grams * it.qty)
+                  : `${it.qty}`}{' '}
+                en stock
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Modal>
   )
 }
 

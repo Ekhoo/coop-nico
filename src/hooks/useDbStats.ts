@@ -45,6 +45,21 @@ export function usePurgeTransactions() {
   })
 }
 
+export function useCancelTransaction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (txId: string) => {
+      const { error } = await supabase.rpc('cancel_transaction', { tx_id: txId })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sales'] })
+      qc.invalidateQueries({ queryKey: ['products'] })
+      qc.invalidateQueries({ queryKey: ['db-stats'] })
+    },
+  })
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} o`
   const kb = bytes / 1024

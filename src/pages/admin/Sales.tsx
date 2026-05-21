@@ -29,6 +29,7 @@ import { formatPrice, formatDateTime, formatDate } from '@/lib/format'
 import { DbHealth } from '@/components/DbHealth'
 import { Modal } from '@/components/Modal'
 import { useToast } from '@/components/Toast'
+import { useAuth } from '@/lib/auth'
 import { useCancelTransaction, useDbStats, usePurgeTransactions } from '@/hooks/useDbStats'
 import { useProducts } from '@/hooks/useProducts'
 import { formatGrams, type Profile, type Transaction, type TransactionItem } from '@/lib/database.types'
@@ -54,6 +55,8 @@ interface ProductBreakdown {
 }
 
 export function SalesPage() {
+  const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
   const today = new Date()
   const [from, setFrom] = useState(format(startOfMonth(today), 'yyyy-MM-dd'))
   const [to, setTo] = useState(format(endOfMonth(today), 'yyyy-MM-dd'))
@@ -205,7 +208,8 @@ export function SalesPage() {
   }
 
   // Plage globale (1ère et dernière transaction de la base) pour le bouton "Toute la période"
-  const { data: dbStats } = useDbStats()
+  // (réservé aux admins : la RPC get_db_stats est admin-only)
+  const { data: dbStats } = useDbStats({ enabled: isAdmin })
   const globalRange = useMemo(() => {
     if (!dbStats?.oldest_transaction || !dbStats?.newest_transaction) return null
     return {
@@ -217,22 +221,24 @@ export function SalesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Rapports</h1>
-        <div className="flex items-center gap-2">
-          <PurgeButton
-            from={fromDate}
-            to={toDate}
-            count={stats.txCount}
-            disabled={isLoading}
-          />
-          <button
-            onClick={handleExportPdf}
-            disabled={!data || data.length === 0}
-            className="btn-primary"
-          >
-            <Download className="h-4 w-4" /> Export PDF
-          </button>
-        </div>
+        <h1 className="text-2xl font-bold">{isAdmin ? 'Rapports' : 'Mes ventes'}</h1>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <PurgeButton
+              from={fromDate}
+              to={toDate}
+              count={stats.txCount}
+              disabled={isLoading}
+            />
+            <button
+              onClick={handleExportPdf}
+              disabled={!data || data.length === 0}
+              className="btn-primary"
+            >
+              <Download className="h-4 w-4" /> Export PDF
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="card p-4 flex flex-wrap items-center gap-3">
@@ -251,47 +257,67 @@ export function SalesPage() {
         />
       </div>
 
-      <DbHealth
-        txCountInPeriod={stats.txCount}
-        periodFrom={fromDate}
-        periodTo={toDate}
-      />
+      {isAdmin ? (
+        <>
+          <DbHealth
+            txCountInPeriod={stats.txCount}
+            periodFrom={fromDate}
+            periodTo={toDate}
+          />
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <Kpi
-          label="Total client"
-          value={formatPrice(stats.clientTotal)}
-          icon={<Wallet className="h-5 w-5" />}
-          color="brand"
-        />
-        <Kpi
-          label="Foyer"
-          value={formatPrice(stats.foyerTotal)}
-          icon={<Building2 className="h-5 w-5" />}
-          color="sky"
-        />
-        <Kpi
-          label="Caisse noire"
-          value={formatPrice(stats.commissionTotal)}
-          icon={<Sparkles className="h-5 w-5" />}
-          color="purple"
-        />
-        <Kpi
-          label="Coût d'achat"
-          value={formatPrice(stats.costTotal)}
-          icon={<ShoppingBag className="h-5 w-5" />}
-          color="slate"
-        />
-        <Kpi
-          label="Transactions"
-          value={`${stats.txCount}`}
-          icon={<Receipt className="h-5 w-5" />}
-          color="amber"
-        />
-      </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <Kpi
+              label="Total client"
+              value={formatPrice(stats.clientTotal)}
+              icon={<Wallet className="h-5 w-5" />}
+              color="brand"
+            />
+            <Kpi
+              label="Foyer"
+              value={formatPrice(stats.foyerTotal)}
+              icon={<Building2 className="h-5 w-5" />}
+              color="sky"
+            />
+            <Kpi
+              label="Caisse noire"
+              value={formatPrice(stats.commissionTotal)}
+              icon={<Sparkles className="h-5 w-5" />}
+              color="purple"
+            />
+            <Kpi
+              label="Coût d'achat"
+              value={formatPrice(stats.costTotal)}
+              icon={<ShoppingBag className="h-5 w-5" />}
+              color="slate"
+            />
+            <Kpi
+              label="Transactions"
+              value={`${stats.txCount}`}
+              icon={<Receipt className="h-5 w-5" />}
+              color="amber"
+            />
+          </div>
+        </>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <Kpi
+            label="Total de mes ventes"
+            value={formatPrice(stats.clientTotal)}
+            icon={<Wallet className="h-5 w-5" />}
+            color="brand"
+          />
+          <Kpi
+            label="Mes transactions"
+            value={`${stats.txCount}`}
+            icon={<Receipt className="h-5 w-5" />}
+            color="amber"
+          />
+        </div>
+      )}
 
-      {stats.txCount > 0 && <TopProducts byProduct={stats.byProduct} />}
+      {isAdmin && stats.txCount > 0 && <TopProducts byProduct={stats.byProduct} />}
 
+      {isAdmin && (
       <div className="card overflow-x-auto">
         <div className="px-4 py-2 border-b border-slate-200 font-semibold text-sm">
           Ventilation par article
@@ -342,7 +368,9 @@ export function SalesPage() {
           </table>
         )}
       </div>
+      )}
 
+      {isAdmin && (
       <div className="card overflow-x-auto">
         <div className="px-4 py-2 border-b border-slate-200 font-semibold text-sm">
           Par vendeur
@@ -372,6 +400,7 @@ export function SalesPage() {
           </table>
         )}
       </div>
+      )}
 
       <div className="card overflow-hidden">
         <div className="px-4 py-2 border-b border-slate-200 font-semibold text-sm flex items-center gap-2">

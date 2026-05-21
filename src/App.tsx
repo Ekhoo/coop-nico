@@ -43,9 +43,10 @@ export default function App() {
                 path="admin/users"
                 element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>}
               />
+              {/* Accessible aux vendeurs : ils n'y verront que leurs propres ventes */}
               <Route
                 path="admin/sales"
-                element={<ProtectedRoute adminOnly><SalesPage /></ProtectedRoute>}
+                element={<ProtectedRoute><SalesPage /></ProtectedRoute>}
               />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

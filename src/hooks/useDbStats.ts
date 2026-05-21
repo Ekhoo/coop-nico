@@ -15,7 +15,7 @@ export interface DbStats {
 export const FREE_TIER_DB_BYTES = 500 * 1024 * 1024 // 500 MiB
 export const FREE_TIER_STORAGE_BYTES = 1024 * 1024 * 1024 // 1 GiB
 
-export function useDbStats() {
+export function useDbStats(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['db-stats'],
     queryFn: async (): Promise<DbStats> => {
@@ -24,6 +24,7 @@ export function useDbStats() {
       return data as DbStats
     },
     staleTime: 60_000, // ne pas spammer le serveur, refresh max 1×/min
+    enabled: options?.enabled ?? true,
   })
 }
 

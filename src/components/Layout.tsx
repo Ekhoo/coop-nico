@@ -65,13 +65,14 @@ export function Layout() {
                   label="Comptes"
                   icon={<Users className="h-4 w-4" />}
                 />
-                <NavItem
-                  to="/admin/sales"
-                  label="Rapports"
-                  icon={<BarChart3 className="h-4 w-4" />}
-                />
               </>
             )}
+            {/* Visible par tous : un vendeur n'y voit que ses propres ventes */}
+            <NavItem
+              to="/admin/sales"
+              label={isAdmin ? 'Rapports' : 'Mes ventes'}
+              icon={<BarChart3 className="h-4 w-4" />}
+            />
           </div>
         </nav>
       </header>
